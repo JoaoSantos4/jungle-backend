@@ -4,7 +4,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "typecheck": "bun check"
+    "start": "bun src/main.ts",
+    "dev": "bun --watch src/main.ts",
+    "test": "bun test",
+    "check": "tsc --noEmit",
+    "typecheck": "bun check",
+    "migration:run": "bun src/infraestrutura/banco/executar-migrations.ts",
+    "migration:revert": "bun src/infraestrutura/banco/reverter-migration.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

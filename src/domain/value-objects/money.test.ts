@@ -100,4 +100,26 @@ describe('Money', () => {
     expect(dinheiro.negate().toJSON().amount)
       .toBe('-1.00');
   });
+
+  test('Nao deve aceitar valor acima do limite monetario', () => {
+  expect(() => Money.from({
+    amount: '1000000000000000000.00',
+    currency: 'BRL'
+  })).toThrow('Valor fora do limite monetario');
+});
+
+test('Nao deve permitir soma acima do limite monetario', () => {
+  const valor = Money.from({
+    amount: '999999999999999999.99',
+    currency: 'BRL'
+  });
+
+  const adicional = Money.from({
+    amount: '0.01',
+    currency: 'BRL'
+  });
+
+  expect(() => valor.add(adicional))
+    .toThrow('Valor fora do limite monetario');
+});
 });

@@ -1,5 +1,13 @@
 import Decimal from 'decimal.js';
 
+const DecimalMonetario = Decimal.clone({
+  precision: 40
+});
+
+const LIMITE_MONETARIO = new DecimalMonetario(
+  '999999999999999999.99'
+);
+
 export interface MoneyProps {
   amount: string;
   currency: string;
@@ -7,33 +15,41 @@ export interface MoneyProps {
 
 export class Money {
   private constructor(
-    private readonly valor: Decimal,
-    private readonly moeda: string
-  ) {}
-
-  static from(props: MoneyProps): Money {
-    if (
-      typeof props.amount !== 'string' ||
-      !/^-?\d+(\.\d{1,2})?$/.test(props.amount)
-    ) {
-      throw new Error('Valor monetario invalido');
-    }
-
-    if (
-      typeof props.currency !== 'string' ||
-      !/^[A-Z]{3}$/.test(props.currency)
-    ) {
-      throw new Error('Moeda invalida');
-    }
-
-    const valor = new Decimal(props.amount);
-
-    if (!valor.isFinite()) {
-      throw new Error('Valor monetario invalido');
-    }
-
-    return new Money(valor, props.currency);
+  private readonly valor: Decimal,
+  private readonly moeda: string
+) {
+  if (
+    !valor.isFinite() ||
+    valor.abs().gt(LIMITE_MONETARIO) ||
+    valor.decimalPlaces() > 2
+  ) {
+    throw new Error('Valor fora do limite monetario');
   }
+}
+
+static from(props: MoneyProps): Money {
+  if (
+    typeof props.amount !== 'string' ||
+    !/^-?\d+(\.\d{1,2})?$/.test(props.amount)
+  ) {
+    throw new Error('Valor monetario invalido');
+  }
+
+  if (
+    typeof props.currency !== 'string' ||
+    !/^[A-Z]{3}$/.test(props.currency)
+  ) {
+    throw new Error('Moeda invalida');
+  }
+
+  const valor = new DecimalMonetario(props.amount);
+
+  if (!valor.isFinite()) {
+    throw new Error('Valor monetario invalido');
+  }
+
+  return new Money(valor, props.currency);
+}
 
   static zero(moeda: string): Money {
     return Money.from({
