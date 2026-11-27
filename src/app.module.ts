@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { LoggerModule } from 'nestjs-pino';
 
 import {
   CarteiraController
@@ -11,6 +12,10 @@ import {
 import {
   HealthController
 } from './infraestrutura/http/controllers/health.controller';
+
+import {
+  MetricasController
+} from './infraestrutura/observabilidade/metricas.controller';
 
 import {
   CarteiraService
@@ -36,12 +41,39 @@ import {
   ReferenciaPendenteService
 } from './infraestrutura/workers/referencia-pendente.service';
 
+import {
+  logger
+} from './infraestrutura/observabilidade/logger';
+
 @Module({
+  imports: [
+    LoggerModule.forRoot({
+      pinoHttp: {
+        logger,
+
+        genReqId: () => crypto.randomUUID(),
+
+        serializers: {
+          req: requisicao => ({
+            id: requisicao.id,
+            method: requisicao.method
+          }),
+
+          res: resposta => ({
+            statusCode: resposta.statusCode
+          })
+        }
+      }
+    })
+  ],
+
   controllers: [
     CarteiraController,
     TransacaoController,
-    HealthController
+    HealthController,
+    MetricasController
   ],
+
   providers: [
     CarteiraService,
     TransacaoService,

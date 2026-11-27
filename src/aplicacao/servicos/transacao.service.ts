@@ -44,6 +44,14 @@ import type {
 
 import { gerarHash } from '../utilitarios/gerar-hash';
 
+import { logger } from '../../infraestrutura/observabilidade/logger';
+import {
+  transacoesProcessadas,
+  transacoesDuplicadas,
+  conflitosBloqueio,
+  latenciaProcessamento
+} from '../../infraestrutura/observabilidade/metricas';
+
 @Injectable()
 export class TransacaoService {
 
@@ -53,14 +61,48 @@ export class TransacaoService {
       correlationId: crypto.randomUUID()
     }
   ): Promise<ResultadoTransacao> {
+    const finalizar = latenciaProcessamento.startTimer({ origem: 'http' });
 
-    return banco.transaction(gerenciador =>
-      this.processarComGerenciador(
-        entrada,
-        contexto,
-        gerenciador
-      )
-    );
+    try {
+      const resultado = await banco.transaction(gerenciador =>
+        this.processarComGerenciador(entrada, contexto, gerenciador)
+      );
+
+      if (resultado.idempotentReplay) {
+        transacoesDuplicadas.inc();
+      } else {
+        transacoesProcessadas.inc({ status: resultado.status });
+      }
+
+      logger.info({
+        correlationId: contexto.correlationId,
+        transactionId: resultado.transactionId,
+        walletId: entrada.walletId,
+        providerId: entrada.providerId,
+        status: resultado.status,
+        idempotentReplay: resultado.idempotentReplay
+      }, 'Transacao financeira concluida');
+
+      return resultado;
+    } catch (erro) {
+      const falha = erro as { code?: string; driverError?: { code?: string } } | null;
+      const codigo = falha?.driverError?.code ?? falha?.code;
+
+      if (codigo === '40P01' || codigo === '55P03' || codigo === '40001') {
+        conflitosBloqueio.inc();
+      }
+
+      logger.error({
+        correlationId: contexto.correlationId,
+        walletId: entrada.walletId,
+        providerId: entrada.providerId,
+        codigo
+      }, 'Falha no processamento financeiro');
+
+      throw erro;
+    } finally {
+      finalizar();
+    }
   }
 
   async processarComGerenciador(
