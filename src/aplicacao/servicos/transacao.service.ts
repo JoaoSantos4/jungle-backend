@@ -275,7 +275,9 @@ export class TransacaoService {
         const primeiraTentativa =
           transacao.status !== StatusTransacao.PENDING_REFERENCE;
 
-        transacao.markPendingReference();
+        if (primeiraTentativa) {
+          transacao.markPendingReference();
+        }
 
         await transacoes.atualizar(
           transacao,
@@ -339,7 +341,9 @@ export class TransacaoService {
           const primeiraTentativa =
             transacao.status !== StatusTransacao.PENDING_REFERENCE;
 
-          transacao.markPendingReference();
+          if (primeiraTentativa) {
+            transacao.markPendingReference();
+          }
 
           await transacoes.atualizar(transacao, carteira.balance);
 
@@ -501,6 +505,26 @@ export class TransacaoService {
       transacao,
       carteira.balance
     );
+  }
+
+  async expirarReferencia(
+    transacao: WagerTransaction,
+    carteira: Wallet,
+    gerenciador: EntityManager
+  ): Promise<void> {
+    if (!gerenciador.queryRunner?.isTransactionActive) {
+      throw new Error('Processamento exige transacao ativa');
+    }
+    if (transacao.status !== StatusTransacao.PENDING_REFERENCE) {
+      throw new Error('Transacao nao esta pendente');
+    }
+    const transacoes = new WagerTransactionRepository(gerenciador);
+    const outbox = new OutboxRepository(gerenciador);
+    transacao.reject(CodigoFalha.REFERENCIA_NAO_ENCONTRADA);
+    await transacoes.atualizar(transacao, carteira.balance);
+    await this.registrarEvento(outbox, WagerTransactionRejected.from(
+      transacao, { correlationId: transacao.id }
+    ));
   }
 
   private resultado(
